@@ -2,6 +2,7 @@ import simpy
 import numpy as np
 from dataclasses import dataclass, field
 
+
 env = simpy.Environment()
 
 @dataclass
@@ -26,10 +27,10 @@ class BaseMachine:
         process_duration = rng.normal(loc = self.pr_mean, scale = self.pr_std)
         yield self.env.timeout(process_duration)
 
-        print(f"Lot tracked out of tool at {int(self.env.now)}")
+        print(f"Lot tracked out of {self.tool_name} at {int(self.env.now)}")
 
         for sensor in self.sensors:
             reading = rng.normal(loc = sensor.mean, scale = sensor.std)
             print(f"{sensor.name} = {reading:.1f}{sensor.unit}")
-                
-    
+
+       
