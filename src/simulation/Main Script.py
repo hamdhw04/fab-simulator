@@ -2,19 +2,26 @@ import simpy
 import numpy as np
 from basemachine import SensorSpec, BaseMachine
 import random
+import pandas
+import json
 
-def processing(recipe):
-    for machine in recipe:
-        yield env.process(machine.processing())
-
-def delivery(interval:float,recipes:dict):
+def factory(interval:float,recipes:dict, final_data:dict): #interval is how often lot's come into the fab
     lotid = 0
     while True:
-        yield env.timeout(np.random.exponential(1.0/interval))
+        yield env.timeout(np.random.exponential(interval))
         recipe = random.choice(list(recipes.values()))
-        yield env.process(processing(recipe))
         lotid += 1
-        print(f"lot{lotid} completed.")
+        env.process(processing(recipe,lotid,final_data))
+        print(f"lot{lotid} started.")
+
+def processing(recipe,id,final_data:dict):
+    results_dict = {}
+    results_dict[id] = {}
+    for machine in recipe:
+        machine_run = env.process(machine.processing(id))
+        yield machine_run #hold until the process has completed, then move onto next element
+        results_dict[id].update(machine_run.value)
+    final_data.update(results_dict)
 
 #Temperature, Growth Rate and Pressure. Will assume atmospheric pressure CVD, using trichlorosilane
 epi_sensors = [
@@ -38,7 +45,7 @@ photo_sensors = [
 
 env = simpy.Environment()
 
-SIM_RUNTIME = 1000
+SIM_RUNTIME = 5000
 
 epi = BaseMachine(env,"Epi",epi_sensors,30,1.67)
 ox = BaseMachine(env,"Ox",ox_sensors,255,25) #3-5.5 hours including ramp up and ramp down
@@ -47,6 +54,9 @@ photo = BaseMachine(env,"Photo",photo_sensors,5.5,0.5) #4-7 minutes
 recipes = {'recipe1' : [epi,ox,photo],
            'recipe2' : [epi,ox,photo,ox]}
 
-env.process(delivery(50, recipes))
+final = {}
+env.process(factory(1000, recipes,final))
+
 env.run(until=SIM_RUNTIME)
+print(json.dumps(final,indent= 4))
 
