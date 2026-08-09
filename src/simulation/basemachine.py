@@ -1,10 +1,6 @@
 import simpy
 import numpy as np
-from dataclasses import dataclass, field
-from typing import List
-
-
-env = simpy.Environment()
+from dataclasses import dataclass
 
 @dataclass
 class SensorSpec:
@@ -28,9 +24,12 @@ class BaseMachine:
     output_spec : Output
     pr_mean : float
     pr_std : float
+    index : int 
     optimal : float = 0.0
     bound : float = 0.0
     dmax : float = 0.0
+    failed : bool = False
+    
 
     # reading: List[bool] = field(init=False)
 
@@ -63,7 +62,8 @@ class BaseMachine:
         self.cconst = self.optimal
         self.kconst = (self.bound-self.optimal)/ (self.max_distance[0] + (self.max_distance[1]**2) + 0.5*(self.max_distance[0]*self.max_distance[1]))
 
-    def running(self,id):
+    def running(self):
+
         rng = np.random.default_rng() #each machine has it's own randomness
 
         data = {}
@@ -96,14 +96,21 @@ class BaseMachine:
 
         new_output = self.kconst*(self.distances[0] + (self.distances[1]**2) + (0.5*(self.distances[0]*self.distances[1]))) + self.cconst
         data[self.tool_name].append(new_output)
+        data[self.tool_name].append(self.index)
+
+        self.failed = False
 
         if new_output * self.output_sign > self.output_sign * self.bound:
-            print("Wafer out of spec, Tool failure, repairing")
+            print(f"Wafer out of spec, Tool #{self.index} failure, repairing")
+            self.failed = True
+            data[self.tool_name].append(self.failed)
             yield self.env.timeout(100)
             self.reading = [sensor.operating for sensor in self.sensors]
             self.distances = [0,0]
+        else:
+            data[self.tool_name].append(self.failed)
 
         return data
-            
+        
 
-       
+    

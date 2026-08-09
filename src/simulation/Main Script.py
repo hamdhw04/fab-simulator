@@ -1,6 +1,7 @@
 import simpy
 import numpy as np
 from basemachine import SensorSpec, BaseMachine , Output
+from toolgroup import ToolGroup
 import random
 import pandas
 import json
@@ -18,10 +19,10 @@ def factory(interval:float,recipes:dict, final_data:dict): #interval is how ofte
 def processing(recipe,id,final_data:dict):
     results_dict = {}
     results_dict[id] = {}
-    for machine in recipe:
-        machine_run = env.process(machine.running(id))
-        yield machine_run #hold until the process has completed, then move onto next element
-        results_dict[id].update(machine_run.value)
+    for group in recipe:
+        group_run = env.process(group.grouprun())
+        yield group_run #hold until the process has completed, then move onto next element
+        results_dict[id].update(group_run.value)
     final_data.update(results_dict)
 
 #Temperature, Growth Rate and Pressure. Will assume atmospheric pressure CVD, using trichlorosilane
@@ -32,10 +33,10 @@ epi_sensors = [
 
 epi_output = Output(optimal = 3, bound = 1)
 env = simpy.Environment()
+res = simpy.Resource(env, capacity=1)
 
 SIM_RUNTIME = 5000
-
-epi = BaseMachine(env,"Epi",epi_sensors,epi_output,30,1.67)
+epi = ToolGroup(env,"Epi",epi_sensors,epi_output,30,1.67,3)
 
 recipes = {'recipe1' : [epi]}
 
