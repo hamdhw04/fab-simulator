@@ -20,7 +20,7 @@ class ToolGroup():
 
         self.resources = [simpy.Resource(self.env,capacity=1) for i in range(self.num_tools)] #array of simpy resources for each machine
 
-    def grouprun(self):
+    def grouprun(self,id,simdata:list):
         requests = [resource.request() for resource in self.resources] #all requests for tools
         result = yield simpy.AnyOf(self.env,requests)
         granted = list(result.keys())[0] #resource that was granted, [0] just in case multiple resources become free at the same instance
@@ -34,7 +34,7 @@ class ToolGroup():
             else:
                 r.cancel()
 
-        tool_run = self.env.process(self.tools[tool_index].running())
+        tool_run = self.env.process(self.tools[tool_index].running(id,simdata))
         yield tool_run
         self.resources[tool_index].release(granted)
         return tool_run.value

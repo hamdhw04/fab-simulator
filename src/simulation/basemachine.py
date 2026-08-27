@@ -29,9 +29,6 @@ class BaseMachine:
     bound : float = 0.0
     dmax : float = 0.0
     failed : bool = False
-    
-
-    # reading: List[bool] = field(init=False)
 
     def __post_init__(self):
         self.reading = [sensor.operating for sensor in self.sensors] #intial readings, will mutate this
@@ -62,19 +59,21 @@ class BaseMachine:
         self.cconst = self.optimal
         self.kconst = (self.bound-self.optimal)/ (self.max_distance[0] + (self.max_distance[1]**2) + 0.5*(self.max_distance[0]*self.max_distance[1]))
 
-    def running(self):
+    def running(self,id,simdata:list):
 
         rng = np.random.default_rng() #each machine has it's own randomness
 
         data = {}
-        data[self.tool_name] = []
+        data["Tool Group"] = self.tool_name
+        data["Tool ID"] = self.index
+        data["LotID"] = id
 
-        data[self.tool_name].append(int(self.env.now))
+        data["Time In"] = int(self.env.now)
         # print(f"\nLot{id} entered {self.tool_name} at {int(self.env.now)}")
         process_duration = rng.normal(loc = self.pr_mean, scale = self.pr_std)
         yield self.env.timeout(process_duration)
 
-        data[self.tool_name].append(int(self.env.now))
+        data["Time Out"] = int(self.env.now)
         # print(f"Lot{id} tracked out of {self.tool_name} at {int(self.env.now)}")#
 
         for i,sensor in enumerate(self.sensors): #separating into index and items
@@ -89,28 +88,29 @@ class BaseMachine:
             noise = np.random.default_rng().normal(loc=0,scale=1) #noise modelled as normal distribution
             self.reading[i] = self.reading[i] + drift + noise
 
-            print(f"{sensor.name} = {self.reading[i]:.1f}{sensor.unit}")
-            data[self.tool_name].append(f"{self.reading[i]:.1f}{sensor.unit}")
 
             self.distances[i] = sign *(self.reading[i] - self.baseline[i]) #current distance from optimal output
 
+        data["Input 1"] = self.reading[0]
+        data["Input 2"] = self.reading[1]
+
         new_output = self.kconst*(self.distances[0] + (self.distances[1]**2) + (0.5*(self.distances[0]*self.distances[1]))) + self.cconst
-        data[self.tool_name].append(new_output)
-        data[self.tool_name].append(self.index)
+        data["Output"] = new_output
 
         self.failed = False
 
         if new_output * self.output_sign > self.output_sign * self.bound:
             print(f"Wafer out of spec, Tool #{self.index} failure, repairing")
             self.failed = True
-            data[self.tool_name].append(self.failed)
+            data["Failed"] = self.failed
             yield self.env.timeout(100)
             self.reading = [sensor.operating for sensor in self.sensors]
             self.distances = [0,0]
         else:
-            data[self.tool_name].append(self.failed)
+            data["Failed"] = self.failed
 
-        return data
+        simdata.append(data)
+
+        return simdata
         
 
-    
