@@ -4,62 +4,94 @@ from basemachine import SensorSpec, BaseMachine , Output
 from toolgroup import ToolGroup
 import random
 import pandas as pd
-import json
-import matplotlib.pyplot
+from dataclasses import dataclass
 
-def factory(interval:float,recipes:dict, final_data:list): #interval is how often lot's come into the fab
+@dataclass
+class FactoryStats:
+    profit : float = 0.0
+    complete_lots : float = 0.0
+    scrapped_lots : float = 0.0
+
+def factory(interval:float,recipes:dict, final_data:list, stats): #interval is how often lot's come into the fab
     lotid = 0
     while True:
         yield env.timeout(np.random.exponential(interval))
         recipe = random.choice(list(recipes.values()))
         lotid += 1
-        env.process(processing(recipe,lotid,final_data))
-        print(f"lot{lotid} started.")
+        env.process(processing(recipe,lotid,final_data,stats))
 
-def processing(recipe,id,final_data:list):
-    for group in recipe:
+def processing(recipe,id,final_data:list,stats):
+    for i , group in enumerate(recipe):
         group_run = env.process(group.grouprun(id,final_data))
         yield group_run #hold until the process has completed, then move onto next element
-        results_dict = group_run.value
-   
+        _ , failed = group_run.value
+        if failed == True:
+            stats.profit -= 500 + 500*(i+1) #each stage costs 500, lot not worked on costs 500
+            stats.scrapped_lots += 1
+            break
+        if i+1 == len(recipe): #end of recipe
+            stats.profit += (1+(i+1)*0.1)*2000 
+            stats.complete_lots += 1
 
 #Temperature, Growth Rate and Pressure. Will assume atmospheric pressure CVD, using trichlorosilane
 epi_sensors = [
-    SensorSpec(name="temperature", unit="°C", operating=1125, max=1200, aggression=10, positive=True), 
-    SensorSpec(name="pressure", unit="Pa", operating=101325, max=95000, aggression=4, positive= False)
+    SensorSpec(operating=1125, max=1200, aggression=10, positive=True), #temp
+    SensorSpec(operating=101325, max=95000, aggression=4, positive= False) #pressure (pa)
 ]
 
 ox_sensors = [
-    SensorSpec(name="temperature", unit="°C", operating=1000, max=1250, aggression=15, positive=True), 
-    SensorSpec(name="o2 flow rate", unit="cm3/min", operating=65, max=80, aggression=5, positive= True)
+    SensorSpec(operating=1000, max=1250, aggression=15, positive=True), #temp
+    SensorSpec(operating=65, max=80, aggression=5, positive= True) #o2 flow rate
 ]
 
 photo_sensors = [
-    SensorSpec(name="exposure intensity", unit="mJ/cm2", operating=100, max=140, aggression=8, positive=True), 
-    SensorSpec(name="alignment offset", unit="nm", operating=4, max=6, aggression=2, positive= True)
+    SensorSpec(operating=100, max=140, aggression=8, positive=True), #exposure intensity
+    SensorSpec(operating=4, max=6, aggression=2, positive= True) #alignment offset
 ]
+
+etch_sensors = [
+    SensorSpec(operating=100, max=200, aggression=16, positive=True),
+    SensorSpec(operating=2, max=6, aggression=3, positive= True) 
+]
+
+dep_sensors = [
+    SensorSpec(operating=1400, max=1000, aggression=10, positive=False),
+    SensorSpec(operating=1, max=6, aggression=12, positive= True) 
+]
+
 
 epi_output = Output(optimal = 3, bound = 1)
 ox_output = Output(optimal = 5, bound = 2)
 photo_output = Output(optimal = 400, bound = 200)
+etch_output = Output(optimal = 3, bound = 1)
+dep_output = Output(optimal = 5, bound = 3)
+
 
 env = simpy.Environment()
 res = simpy.Resource(env, capacity=1)
+SIM_RUNTIME = 43200 #1 months
 
-SIM_RUNTIME = 10000
 epi = ToolGroup(env,"Epi",epi_sensors,epi_output,30,1.67,3)
 ox = ToolGroup(env, "Oxidation",ox_sensors,ox_output,255,25,5)
 photo = ToolGroup(env,"Photo",photo_sensors,photo_output,5.5,0.5,2)
+etch = ToolGroup(env, "Etch",etch_sensors,etch_output,60,3.33,3)
+dep = ToolGroup(env, "Deposition",dep_sensors,dep_output,100,16.67,2)
 
-recipes = {'recipe1' : [epi,ox,photo],
-           'recipe2' : [epi,ox,photo,ox],
-            'recipe3' : [epi,ox]
+recipes = {'recipe1' : [epi,ox,photo,etch,dep],
+           'recipe2' : [epi,ox,photo,etch,ox,photo,etch,dep],
+            'recipe3' : [epi,ox,photo,etch,ox,photo,etch,ox,photo,etch,dep]
            }
 
 final = []
-env.process(factory(100, recipes,final))
+stats = FactoryStats()
+factory = env.process(factory(100, recipes,final,stats))
 
+factory
 env.run(until=SIM_RUNTIME)
+
+print(stats.profit)
+print(stats.scrapped_lots)
+print(stats.complete_lots)
 
 test = pd.DataFrame(final)
 test.to_csv("test.csv")

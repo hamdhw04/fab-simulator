@@ -4,8 +4,6 @@ from dataclasses import dataclass
 
 @dataclass
 class SensorSpec:
-    name : str
-    unit : str
     operating : float
     max : float
     aggression : float #between 1-10, 10 being aggressive degradation
@@ -69,12 +67,10 @@ class BaseMachine:
         data["LotID"] = id
 
         data["Time In"] = int(self.env.now)
-        # print(f"\nLot{id} entered {self.tool_name} at {int(self.env.now)}")
         process_duration = rng.normal(loc = self.pr_mean, scale = self.pr_std)
         yield self.env.timeout(process_duration)
 
         data["Time Out"] = int(self.env.now)
-        # print(f"Lot{id} tracked out of {self.tool_name} at {int(self.env.now)}")#
 
         for i,sensor in enumerate(self.sensors): #separating into index and items
 
@@ -100,7 +96,6 @@ class BaseMachine:
         self.failed = False
 
         if new_output * self.output_sign > self.output_sign * self.bound:
-            print(f"Wafer out of spec, Tool #{self.index} failure, repairing")
             self.failed = True
             data["Failed"] = self.failed
             yield self.env.timeout(100)
@@ -111,6 +106,6 @@ class BaseMachine:
 
         simdata.append(data)
 
-        return simdata
+        return simdata , self.failed
         
 
