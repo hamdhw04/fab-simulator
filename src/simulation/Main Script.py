@@ -54,7 +54,12 @@ etch_sensors = [
     SensorSpec(operating=2, max=6, aggression=3, positive= True) 
 ]
 
-dep_sensors = [
+diff_sensors = [
+    SensorSpec(operating=1000, max=1400, aggression=8, positive=True),
+    SensorSpec(operating=50, max=80, aggression=3, positive= True) 
+]
+
+mdep_sensors = [
     SensorSpec(operating=1400, max=1000, aggression=10, positive=False),
     SensorSpec(operating=1, max=6, aggression=12, positive= True) 
 ]
@@ -62,24 +67,30 @@ dep_sensors = [
 
 epi_output = Output(optimal = 3, bound = 1)
 ox_output = Output(optimal = 5, bound = 2)
-photo_output = Output(optimal = 400, bound = 200)
+photo_output = Output(optimal = 5, bound = 10)
 etch_output = Output(optimal = 3, bound = 1)
-dep_output = Output(optimal = 5, bound = 3)
+diff_output = Output(optimal = 0.5, bound = 2)
+mdep_output = Output(optimal = 5, bound = 3)
 
 
 env = simpy.Environment()
 res = simpy.Resource(env, capacity=1)
-SIM_RUNTIME = 43200 #1 months
+SIM_RUNTIME = 1576800 #3 years - training data
 
 epi = ToolGroup(env,"Epi",epi_sensors,epi_output,30,1.67,3)
 ox = ToolGroup(env, "Oxidation",ox_sensors,ox_output,255,25,5)
 photo = ToolGroup(env,"Photo",photo_sensors,photo_output,5.5,0.5,2)
 etch = ToolGroup(env, "Etch",etch_sensors,etch_output,60,3.33,3)
-dep = ToolGroup(env, "Deposition",dep_sensors,dep_output,100,16.67,2)
+diff = ToolGroup(env, "Diffusion",diff_sensors,diff_output,480,80,3)
+mdep = ToolGroup(env, "Metal Deposition",mdep_sensors,mdep_output,100,16.67,2)
 
-recipes = {'recipe1' : [epi,ox,photo,etch,dep],
-           'recipe2' : [epi,ox,photo,etch,ox,photo,etch,dep],
-            'recipe3' : [epi,ox,photo,etch,ox,photo,etch,ox,photo,etch,dep]
+tools = ["Epi","Oxidation","Photo","Etch","Diffusion","Metal Deposition"]
+
+recipes = {'recipe1' : [epi,ox,photo,etch,mdep],
+           'recipe2' : [epi,ox,photo,etch,diff,photo,etch,mdep],
+            'recipe3' : [epi,ox,photo,etch,ox,photo,etch,mdep],
+            'recipe4' : [epi,ox,photo,etch,ox,photo,etch,diff,photo,etch,mdep],
+            'recipe5' : [epi,ox,photo,etch,diff,photo,etch,diff,photo,etch,mdep]
            }
 
 final = []
@@ -89,12 +100,7 @@ factory = env.process(factory(100, recipes,final,stats))
 factory
 env.run(until=SIM_RUNTIME)
 
-print(stats.profit)
-print(stats.scrapped_lots)
-print(stats.complete_lots)
-
-test = pd.DataFrame(final)
-test.to_csv("test.csv")
-epi = test[test['Tool Group'] == "Epi"]
-epi.to_csv("epitest.csv")
-
+simulation_data = pd.DataFrame(final)
+for i,tool in enumerate(tools):
+    data = simulation_data[(simulation_data["Tool Group"] == tool)]
+    data.to_csv(f"data/raw/{tool}.csv", index=False)

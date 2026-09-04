@@ -27,6 +27,7 @@ class BaseMachine:
     bound : float = 0.0
     dmax : float = 0.0
     failed : bool = False
+    seed : int | None = None
 
     def __post_init__(self):
         self.reading = [sensor.operating for sensor in self.sensors] #intial readings, will mutate this
@@ -36,6 +37,7 @@ class BaseMachine:
 
         self.max_distance = [] #intialising array for max distances for constant calculations
         self.distances = [0,0] #array to mutate distances in running function
+        self.fractions = [0,0] #used to normalise function, since inputs can vary greatly in magnitude and one sensor can dominate too aggressively
 
         self.optimal = self.output_spec.optimal #optimal output 
         self.bound = self.output_spec.bound #value before output out of spec
@@ -55,11 +57,11 @@ class BaseMachine:
 
         #calculating constants for output non-linear relationship to inputs
         self.cconst = self.optimal
-        self.kconst = (self.bound-self.optimal)/ (self.max_distance[0] + (self.max_distance[1]**2) + 0.5*(self.max_distance[0]*self.max_distance[1]))
+        self.kconst = (self.bound-self.optimal)/ 2.5 #2.5 since at max travel, 1+1+0.5 = 2.5
+
+        self.rng = np.random.default_rng(self.seed) #for reproducibility
 
     def running(self,id,simdata:list):
-
-        rng = np.random.default_rng() #each machine has it's own randomness
 
         data = {}
         data["Tool Group"] = self.tool_name
@@ -67,7 +69,7 @@ class BaseMachine:
         data["LotID"] = id
 
         data["Time In"] = int(self.env.now)
-        process_duration = rng.normal(loc = self.pr_mean, scale = self.pr_std)
+        process_duration = self.rng.normal(loc = self.pr_mean, scale = self.pr_std)
         yield self.env.timeout(process_duration)
 
         data["Time Out"] = int(self.env.now)
@@ -80,17 +82,18 @@ class BaseMachine:
                 sign = 1
 
             drift_mag = ((sensor.aggression/100)*self.max_distance[i])
-            drift = sign* np.random.default_rng().exponential(scale = drift_mag) #drift modelled as exponential distribution (positive values, no "healing")    
-            noise = np.random.default_rng().normal(loc=0,scale=1) #noise modelled as normal distribution
+            drift = sign* self.rng.gamma(shape=4, scale=drift_mag/4) #drift modelled as a gamma distribution (positive values, no "healing", CV = 0.5)    
+            noise = self.rng.normal(0,0.01*self.max_distance[i]) #noise modelled as normal distribution
             self.reading[i] = self.reading[i] + drift + noise
 
 
             self.distances[i] = sign *(self.reading[i] - self.baseline[i]) #current distance from optimal output
+            self.fractions[i] = self.distances[i] / self.max_distance[i] #normalised
 
         data["Input 1"] = self.reading[0]
         data["Input 2"] = self.reading[1]
 
-        new_output = self.kconst*(self.distances[0] + (self.distances[1]**2) + (0.5*(self.distances[0]*self.distances[1]))) + self.cconst
+        new_output = self.kconst*(self.fractions[0] + (self.fractions[1]**2) + (0.5*(self.fractions[0]*self.fractions[1]))) + self.cconst
         data["Output"] = new_output
 
         self.failed = False
@@ -101,6 +104,7 @@ class BaseMachine:
             yield self.env.timeout(100)
             self.reading = [sensor.operating for sensor in self.sensors]
             self.distances = [0,0]
+            self.fractions = [0,0]
         else:
             data["Failed"] = self.failed
 
