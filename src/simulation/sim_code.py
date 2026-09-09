@@ -28,7 +28,7 @@ def processing(env,recipe,id,final_data:list,stats):
         yield group_run #hold until the process has completed, then move onto next element
         _ , failed, prevent = group_run.value
         if failed == True:
-            stats.profit -= 1000 + 500 + 500*(i+1) #each stage costs 500, lot not worked on costs 500, tool repair costs 1000
+            stats.profit -= 1000 + 200 + 200*(i+1) #each stage costs 500, lot not worked on costs 500, tool repair costs 1000
             stats.scrapped_lots += 1
             break
         if prevent == True:

@@ -112,7 +112,7 @@ class BaseMachine:
             if means < 3:
                 self.prevent = True
                 data["Prevented"] = self.prevent
-                yield self.env.timeout(50)
+                yield self.env.timeout(self.rng.gamma(shape = 4, scale = 60/4))
                 self.reading = [sensor.operating for sensor in self.sensors]
                 self.distances = [0,0]
                 self.fractions = [0,0]
@@ -125,7 +125,7 @@ class BaseMachine:
             if new_output * self.output_sign > self.output_sign * self.bound:
                 self.failed = True
                 data["Failed"] = self.failed
-                yield self.env.timeout(100)
+                yield self.env.timeout(self.rng.gamma(shape = 4, scale = 100/4))
                 self.reading = [sensor.operating for sensor in self.sensors]
                 self.distances = [0,0]
                 self.fractions = [0,0]
