@@ -1,6 +1,8 @@
 import simpy
 import numpy as np
 from dataclasses import dataclass
+import joblib
+import pandas as pd
 
 @dataclass
 class SensorSpec:
@@ -27,6 +29,8 @@ class BaseMachine:
     bound : float = 0.0
     dmax : float = 0.0
     failed : bool = False
+    prevent : bool = False
+    model_on : bool = False
     seed : int | None = None
 
     def __post_init__(self):
@@ -61,7 +65,7 @@ class BaseMachine:
 
         self.rng = np.random.default_rng(self.seed) #for reproducibility
 
-    def running(self,id,simdata:list):
+    def running(self,id,simdata:list,models):
 
         data = {}
         data["Tool Group"] = self.tool_name
@@ -97,19 +101,39 @@ class BaseMachine:
         data["Output"] = new_output
 
         self.failed = False
+        self.prevent = False
 
-        if new_output * self.output_sign > self.output_sign * self.bound:
-            self.failed = True
-            data["Failed"] = self.failed
-            yield self.env.timeout(100)
-            self.reading = [sensor.operating for sensor in self.sensors]
-            self.distances = [0,0]
-            self.fractions = [0,0]
-        else:
-            data["Failed"] = self.failed
+        if self.model_on == True:
+            row = pd.DataFrame({"Input 1": [self.reading[0]], "Input 2": [self.reading[1]]})
+            predictions = [model.predict(row)[0] for model in models]
+            means = np.mean(predictions)
+            std = np.std(predictions)
+
+            if means < 3:
+                self.prevent = True
+                data["Prevented"] = self.prevent
+                yield self.env.timeout(50)
+                self.reading = [sensor.operating for sensor in self.sensors]
+                self.distances = [0,0]
+                self.fractions = [0,0]
+            else:
+                data["Prevented"] = self.prevent
+
+        
+
+        if self.prevent == False:
+            if new_output * self.output_sign > self.output_sign * self.bound:
+                self.failed = True
+                data["Failed"] = self.failed
+                yield self.env.timeout(100)
+                self.reading = [sensor.operating for sensor in self.sensors]
+                self.distances = [0,0]
+                self.fractions = [0,0]
+            else:
+                data["Failed"] = self.failed
 
         simdata.append(data)
 
-        return simdata , self.failed
+        return simdata , self.failed, self.prevent
         
 

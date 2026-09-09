@@ -1,39 +1,45 @@
 import simpy
 import numpy as np
-from basemachine import SensorSpec, BaseMachine , Output
+from basemachine import SensorSpec , Output
 from toolgroup import ToolGroup
-import random
 import pandas as pd
-from dataclasses import dataclass
+from sim_code import FactoryStats, factory
 
-@dataclass
-class FactoryStats:
-    profit : float = 0.0
-    complete_lots : float = 0.0
-    scrapped_lots : float = 0.0
+def run_sim(seed:int,models_on:bool = False,sim_time:int):
+    env = simpy.Environment()
+    rng = np.random.default_rng(seed)
 
-def factory(interval:float,recipes:dict, final_data:list, stats): #interval is how often lot's come into the fab
-    lotid = 0
-    while True:
-        yield env.timeout(np.random.exponential(interval))
-        recipe = random.choice(list(recipes.values()))
-        lotid += 1
-        env.process(processing(recipe,lotid,final_data,stats))
+    epi = ToolGroup(env,"Epi",epi_sensors,epi_output,30,1.67,3,models_on=models_on,seeds=seed)
+    ox = ToolGroup(env, "Oxidation",ox_sensors,ox_output,255,25,5,models_on=models_on,seeds=seed)
+    photo = ToolGroup(env,"Photo",photo_sensors,photo_output,5.5,0.5,2,models_on=models_on,seeds=seed)
+    etch = ToolGroup(env, "Etch",etch_sensors,etch_output,60,3.33,3,models_on=models_on,seeds=seed)
+    diff = ToolGroup(env, "Diffusion",diff_sensors,diff_output,480,80,3,models_on=models_on,seeds=seed)
+    mdep = ToolGroup(env, "Metal Deposition",mdep_sensors,mdep_output,100,16.67,2,models_on=models_on,seeds=seed)
 
-def processing(recipe,id,final_data:list,stats):
-    for i , group in enumerate(recipe):
-        group_run = env.process(group.grouprun(id,final_data))
-        yield group_run #hold until the process has completed, then move onto next element
-        _ , failed = group_run.value
-        if failed == True:
-            stats.profit -= 500 + 500*(i+1) #each stage costs 500, lot not worked on costs 500
-            stats.scrapped_lots += 1
-            break
-        if i+1 == len(recipe): #end of recipe
-            stats.profit += (1+(i+1)*0.1)*2000 
-            stats.complete_lots += 1
+    recipes = {'recipe1' : [epi,ox,photo,etch,mdep],
+            'recipe2' : [epi,ox,photo,etch,diff,photo,etch,mdep],
+                'recipe3' : [epi,ox,photo,etch,ox,photo,etch,mdep],
+                'recipe4' : [epi,ox,photo,etch,ox,photo,etch,diff,photo,etch,mdep],
+                'recipe5' : [epi,ox,photo,etch,diff,photo,etch,diff,photo,etch,mdep]
+            }
 
-#Temperature, Growth Rate and Pressure. Will assume atmospheric pressure CVD, using trichlorosilane
+    final = []
+    stats = FactoryStats()
+    simulate = env.process(factory(env,100, recipes,final,stats,rng))
+
+    simulate
+    env.run(until=sim_time)
+
+    simulation_statistics = [models_on,stats.complete_lots,stats.scrapped_lots,stats.profit,stats.prevented]
+    simulation_data = pd.DataFrame(final)
+
+    simulation_statistics = pd.DataFrame({"Seed": [seed], "Models On": [models_on], "Completed Lots": [stats.complete_lots], "Scrapped Lots": [stats.scrapped_lots], "Profit Generated": [stats.profit], "Preventative Maintenance Events": [stats.prevented]})
+
+    return simulation_data, simulation_statistics
+
+
+
+
 epi_sensors = [
     SensorSpec(operating=1125, max=1200, aggression=10, positive=True), #temp
     SensorSpec(operating=101325, max=95000, aggression=4, positive= False) #pressure (pa)
@@ -72,35 +78,12 @@ etch_output = Output(optimal = 3, bound = 1)
 diff_output = Output(optimal = 0.5, bound = 2)
 mdep_output = Output(optimal = 5, bound = 3)
 
+# tools = ["Epi","Oxidation","Photo","Etch","Diffusion","Metal Deposition"]
 
-env = simpy.Environment()
-res = simpy.Resource(env, capacity=1)
-SIM_RUNTIME = 1576800 #3 years - training data
+models_on = True
 
-epi = ToolGroup(env,"Epi",epi_sensors,epi_output,30,1.67,3)
-ox = ToolGroup(env, "Oxidation",ox_sensors,ox_output,255,25,5)
-photo = ToolGroup(env,"Photo",photo_sensors,photo_output,5.5,0.5,2)
-etch = ToolGroup(env, "Etch",etch_sensors,etch_output,60,3.33,3)
-diff = ToolGroup(env, "Diffusion",diff_sensors,diff_output,480,80,3)
-mdep = ToolGroup(env, "Metal Deposition",mdep_sensors,mdep_output,100,16.67,2)
+final, stats = run_sim(seed=40,models_on=False,sim_time=5000)
+print(stats)
 
-tools = ["Epi","Oxidation","Photo","Etch","Diffusion","Metal Deposition"]
 
-recipes = {'recipe1' : [epi,ox,photo,etch,mdep],
-           'recipe2' : [epi,ox,photo,etch,diff,photo,etch,mdep],
-            'recipe3' : [epi,ox,photo,etch,ox,photo,etch,mdep],
-            'recipe4' : [epi,ox,photo,etch,ox,photo,etch,diff,photo,etch,mdep],
-            'recipe5' : [epi,ox,photo,etch,diff,photo,etch,diff,photo,etch,mdep]
-           }
 
-final = []
-stats = FactoryStats()
-factory = env.process(factory(100, recipes,final,stats))
-
-factory
-env.run(until=SIM_RUNTIME)
-
-simulation_data = pd.DataFrame(final)
-for i,tool in enumerate(tools):
-    data = simulation_data[(simulation_data["Tool Group"] == tool)]
-    data.to_csv(f"data/raw/{tool}.csv", index=False)

@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 from sklearn.ensemble import GradientBoostingRegressor
 import matplotlib.pylab as plt
+import joblib
+
 
 np.random.seed(42) #global seed
 
@@ -24,7 +26,7 @@ def build_ensemble(training_df, testing_df, n_bootstrapping_models:int = GB_N_BO
     ensemble_metrics = pd.DataFrame(predictions)
     final_means.append(ensemble_metrics.mean())
     final_std.append(ensemble_metrics.std())
-    return final_means, final_std, 
+    return final_means, final_std, models
 
 comparisons = {}
 
@@ -35,7 +37,10 @@ for tool in tools:
     train_data = pd.read_csv(f"data/processed/{tool}_training.csv")
     testing_data = pd.read_csv(f"data/processed/{tool}_test.csv")
 
-    means, std = build_ensemble(train_data,testing_data)
+    means, std, models = build_ensemble(train_data,testing_data)
+
+    joblib.dump(models, f"src/ml/models/{tool}_ensemble.pkl")
+
     compare = testing_data
     means[0].name = "Predicted RUL Mean"
     std[0].name = "Predicted RUL Std"
@@ -47,5 +52,5 @@ for tool in tools:
     average_std.append(float(compare_high["Predicted RUL Std"].mean()))
     comparisons[f"{tool}"] = average_std
 
-print(comparisons)
+
 
