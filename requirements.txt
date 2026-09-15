@@ -5,4 +5,4 @@ pandas==3.0.5
 scikit_learn==1.9.1
 scipy==1.18.1
 simpy==4.1.2
-seaborn 
+seaborn==0.13.2

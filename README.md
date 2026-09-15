@@ -71,7 +71,7 @@ pip install -r requirements.txt
 # Currently always runs the full 50-seed A/B comparison (reactive vs.
 # predictive maintenance) and saves results to ab_results.xlsx / .csv —
 # see What's next for a planned single-run toggle
-python <main_script>.py
+python src/simulation/main_script.py
 ```
 
 *(Update this block with your actual entry-point paths/filenames.)*
