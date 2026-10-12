@@ -5,7 +5,7 @@ from toolgroup import ToolGroup
 import pandas as pd
 from sim_code import FactoryStats, factory
 
-def run_sim(seed:int,models_on:bool = False,sim_time:int):
+def run_sim(seed:int,models_on:bool,sim_time:int):
     env = simpy.Environment()
     rng = np.random.default_rng(seed)
 
@@ -30,10 +30,18 @@ def run_sim(seed:int,models_on:bool = False,sim_time:int):
     simulate
     env.run(until=sim_time)
 
-    simulation_statistics = [models_on,stats.complete_lots,stats.scrapped_lots,stats.profit,stats.prevented]
     simulation_data = pd.DataFrame(final)
 
-    simulation_statistics = pd.DataFrame({"Seed": [seed], "Models On": [models_on], "Completed Lots": [stats.complete_lots], "Scrapped Lots": [stats.scrapped_lots], "Profit Generated": [stats.profit], "Preventative Maintenance Events": [stats.prevented]})
+    #simulation_statistics = pd.DataFrame({"Seed": [seed], "Models On": [models_on], "Completed Lots": [stats.complete_lots], "Scrapped Lots": [stats.scrapped_lots], "Profit Generated": [stats.profit], "Preventative Maintenance Events": [stats.prevented]})
+
+    simulation_statistics =  {
+    "Seed": seed,
+    "Models On": models_on,
+    "Profit": stats.profit,
+    "Complete Lots": stats.complete_lots,
+    "Scrapped Lots/Tool Breakdowns": stats.scrapped_lots,
+    "Breakdowns Prevented": stats.prevented,
+    }
 
     return simulation_data, simulation_statistics
 
@@ -81,9 +89,19 @@ mdep_output = Output(optimal = 5, bound = 3)
 # tools = ["Epi","Oxidation","Photo","Etch","Diffusion","Metal Deposition"]
 
 models_on = True
+num_seeds = 50 #amount of runs to be completed, cycle through seeds
+simulation_runtime = 40320 #4 weeks
+ab_comparison = []
+for k in range(num_seeds):
+    _, stats = run_sim(seed=k+1,models_on=False,sim_time=simulation_runtime)
+    ab_comparison.append(stats)
+    _, stats = run_sim(seed=k+1,models_on=True,sim_time=simulation_runtime)
+    ab_comparison.append(stats)
 
-final, stats = run_sim(seed=40,models_on=False,sim_time=5000)
-print(stats)
+ab_results = pd.DataFrame(ab_comparison)
+ab_results.to_excel("ab_results.xlsx", index=False)
+ab_results.to_csv("ab_results.csv", index=False)
+
 
 
 
