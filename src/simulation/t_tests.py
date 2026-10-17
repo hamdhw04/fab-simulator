@@ -10,7 +10,6 @@ pct_diff = [((on - off)/off) * 100 for on,off in zip(model_on_profit,model_off_p
 mean_pct = np.mean(pct_diff)
 ci_low  = np.quantile(pct_diff,0.025)
 ci_high = np.quantile(pct_diff,0.975)
-print(pct_diff)
 print(mean_pct)
 print(ci_low)
 print(ci_high)

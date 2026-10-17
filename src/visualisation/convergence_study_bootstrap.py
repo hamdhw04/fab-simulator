@@ -29,8 +29,8 @@ def converge_study(training_df, testing_df, n_bootstrapping_models:int, gb_parms
     avg_std = [s.mean() for s in final_std]
     return final_means, final_std, avg_std, n_values
 
-train_data = pd.read_csv(f"data/processed/Epi_training.csv")
-testing_data = pd.read_csv(f"data/processed/Epi_test.csv")
+train_data = pd.read_csv(f"data/processed/Diffusion_training.csv")
+testing_data = pd.read_csv(f"data/processed/Diffusion_test.csv")
 
 _,_,avg,n = converge_study(train_data,testing_data,50)
 
@@ -41,5 +41,5 @@ plt.xlabel("Number of GB Regressors")
 plt.ylabel("Average Std")
 plt.grid(True)
 plt.ylim(0.15, 0.20)
-plt.savefig("notebooks/convergence_graph.png")
+plt.savefig("notebooks/convergence_graph_Diffusion.png")
 plt.show()

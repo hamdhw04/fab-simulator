@@ -74,8 +74,6 @@ pip install -r requirements.txt
 python src/simulation/main_script.py
 ```
 
-*(Update this block with your actual entry-point paths/filenames.)*
-
 ## What's next
 
 **Code quality pass, in progress:**

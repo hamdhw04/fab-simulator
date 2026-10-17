@@ -92,15 +92,17 @@ models_on = True
 num_seeds = 50 #amount of runs to be completed, cycle through seeds
 simulation_runtime = 40320 #4 weeks
 ab_comparison = []
-for k in range(num_seeds):
-    _, stats = run_sim(seed=k+1,models_on=False,sim_time=simulation_runtime)
-    ab_comparison.append(stats)
-    _, stats = run_sim(seed=k+1,models_on=True,sim_time=simulation_runtime)
-    ab_comparison.append(stats)
 
-ab_results = pd.DataFrame(ab_comparison)
-ab_results.to_excel("ab_results.xlsx", index=False)
-ab_results.to_csv("ab_results.csv", index=False)
+if __name__ == "__main__":
+    for k in range(num_seeds):
+        _, stats = run_sim(seed=k+1,models_on=False,sim_time=simulation_runtime)
+        ab_comparison.append(stats)
+        _, stats = run_sim(seed=k+1,models_on=True,sim_time=simulation_runtime)
+        ab_comparison.append(stats)
+
+    ab_results = pd.DataFrame(ab_comparison)
+    ab_results.to_excel("ab_results.xlsx", index=False)
+    ab_results.to_csv("ab_results.csv", index=False)
 
 
 
